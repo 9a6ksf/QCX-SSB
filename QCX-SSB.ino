@@ -7,7 +7,7 @@
 #define VERSION   "1.02m"
 
 // Configuration switches; remove/add a double-slash at line-start to enable/disable a feature; to save space disable e.g. DEBUG, CAT, DIAG, KEYER
-#define DIAG            1   // Hardware diagnostics on startup
+#define DIAG            1   // Hardware diagnostics on startup (only disable when your rig is working)
 #define KEYER           1   // CW keyer
 #define CAT             1   // CAT-interface
 #define F_XTAL 27005000     // 27MHz SI5351 crystal
@@ -316,7 +316,7 @@ public: // QCXLiquidCrystal extends LiquidCrystal library for pull-up driven LCD
 // I2C class used by SSD1306 driver; you may connect a SSD1306 (128x32) display on LCD header pins: 1 (GND); 2 (VCC); 13 (SDA); 14 (SCL)
 class I2C_ {
 public:
-  #define _DELAY() for(uint8_t i = 0; i != 4; i++) asm("nop"); // 4=731kb/s
+  #define _DELAY() for(uint8_t i = 0; i != 3; i++) asm("nop"); // 4=731kb/s
   #define _I2C_SDA (1<<2) // PD2
   #define _I2C_SCL (1<<3) // PD3
   //#define _I2C_INIT() _I2C_SDA_HI(); _I2C_SCL_HI(); DDRD |= (_I2C_SDA | _I2C_SCL);  // direct I/O (no need for pull-ups)
@@ -3141,8 +3141,10 @@ void switch_rxtx(uint8_t tx_enable){
 #ifdef PTX
       digitalWrite(PTX, HIGH);  // TX (enable TX)
 #endif //PTX
-      lcd.setCursor(15, 1); lcd.print('D');
-      delay(txdelay);
+      lcd.setCursor(15, 1); lcd.print('D');  // note that this enables interrupts again.
+      interrupts();    //hack.. to allow delay()
+      delay(txdelay * 5/4);
+      noInterrupts();  //end of hack
     }
 #endif //TX_DELAY
   tx = tx_enable;
@@ -3718,17 +3720,18 @@ void serialEvent(){
   if(data == ';'){
     CATcmd[cat_ptr] = '\0'; // terminate the array
     cat_ptr = 0;            // reset for next CAT command
-  #ifdef _SERIAL
+#ifdef _SERIAL
     if(!cat_active){ cat_active = 1; smode = 0;} // disable smeter to reduce display activity
-  #endif
+#endif
     analyseCATcmd(); delay(10);
   } else if(cat_ptr > (CATCMD_SIZE - 1)){ Serial.print("E;"); cat_ptr = 0; } // overrun
 }
 
 void Command_GETFreqA()
 {
+#ifdef _SERIAL
   if(!cat_active) return;
-
+#endif
   char Catbuffer[32];
   unsigned int g,m,k,h;
   uint32_t tf;
@@ -3760,8 +3763,9 @@ void Command_SETFreqA()
 
 void Command_IF()
 {
+#ifdef _SERIAL
   if(!cat_active) return;
-
+#endif
   char Catbuffer[32];
   unsigned int g,m,k,h;
   uint32_t tf;
